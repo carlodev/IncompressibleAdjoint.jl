@@ -2,14 +2,14 @@
 #STEADY PRIMAL
 ####################################################################
 function eq_primal_steady(params::Dict{Symbol,Any})
-    @unpack method, D = params
+    @unpack method, D,dΩ= params
     if method == :VMS
-        res_prim = primal_steady_SUPG(params)
-    elseif method == :SUPG
         res_prim = primal_steady_VMS(params)
+    elseif method == :SUPG
+        res_prim = primal_steady_SUPG(params)
     end
 
-    rhs(v, q) = ∫(VectorValue(zeros(D)...) ⋅ v)dΩ
+    rhs((v, q)) = ∫(VectorValue(zeros(D)...) ⋅ v)dΩ
 
     return res_prim, rhs
 end
@@ -17,7 +17,7 @@ end
 
 function primal_steady_SUPG(params::Dict{Symbol,Any})
 
-    @unpack ν, dt, dΩ, D, Ω, θ = params
+    @unpack ν, dt, dΩ, D, Ω, θ,uh = params
     h = h_param(Ω, D)
     updatekey(params, :h,h)
 

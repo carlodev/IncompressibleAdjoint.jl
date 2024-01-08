@@ -23,7 +23,7 @@ end
 
 
 
-function solve_inc_primal(model, params::Dict{Symbol,Any}; filename="inc-results")
+function solve_inc_primal_u(model, params::Dict{Symbol,Any}; filename="inc-results")
     @unpack D,order,t_endramp,t0,tf,θ,dt = params
 
     V,Q = create_primal_spaces(model,params)
@@ -61,7 +61,6 @@ function solve_inc_primal(model, params::Dict{Symbol,Any}; filename="inc-results
 
     op = TransientAffineFEOperator(m, res, rhs, X, Y)
 
-  
     ls = LUSolver()
 
     ode_solver = ThetaMethod(ls,dt,θ)
@@ -80,6 +79,9 @@ function solve_inc_primal(model, params::Dict{Symbol,Any}; filename="inc-results
     uh = uh0
     ph = ph0
 
+    uvector = create_ũ_vector(uh.free_values)
+    println("uvec created")
+
     res_path = "Results_primal"
     mkpath(res_path)
 
@@ -90,7 +92,11 @@ function solve_inc_primal(model, params::Dict{Symbol,Any}; filename="inc-results
             pvd[t] = createvtk(Ω, joinpath(res_path, "$(filename)_$t" * ".vtu"), cellfields=["uh" => uh, "ph" => ph])
             push!(UH, copy(uh.free_values))
             push!(PH, copy(ph.free_values))
-            copyto!(params[:uh].free_values, uh.free_values)
+
+            update_ũ_vector!(uvector,uh.free_values)
+            println("udate uvec")
+
+            copyto!(params[:uh].free_values,update_ũ(uvector))
         end
     end
 
@@ -98,8 +104,64 @@ function solve_inc_primal(model, params::Dict{Symbol,Any}; filename="inc-results
 end
 
 
+
+function solve_inc_primal_s(model, params::Dict{Symbol,Any}; filename="inc-steady")
+    @unpack D,order,t_endramp,t0,tf,θ,dt,u_in = params
+
+    V,Q = create_primal_spaces(model,params)
+
+    u0 = D == 2 ? VectorValue(u_in, 0.0) :  VectorValue(u_in, 0.0, 0.0)
+    u_walls = D == 2 ? VectorValue(0.0, 0.0) :  VectorValue(0.0, 0.0, 0.0)
+    p0 = 0.0
+
+    U = TrialFESpace(V, [u0, u0, u_walls])
+    P = TrialFESpace(Q, p0)
+
+    Y = MultiFieldFESpace([V, Q])
+    X = MultiFieldFESpace([U, P])
+
+    degree = order * 2 
+    Ω = Triangulation(model)
+    dΩ = Measure(Ω, degree)
+    updatekey(params,:Ω,Ω)
+    updatekey(params,:dΩ,dΩ)
+
+
+    uh = interpolate_everywhere(u0, U)
+    ph = interpolate_everywhere(p0, P)
+    xh = interpolate_everywhere([uh, ph], X)
+
+    updatekey(params, :uh,uh)
+    res, rhs = eq_primal_steady(params)
+
+    op = AffineFEOperator(res, rhs, X, Y)
+
+  
+    ls = LUSolver()
+    solver = LinearFESolver(ls)
+
+    Gridap.solve!(xh, solver, op)
+    uh, ph = xh 
+
+    #Correct bug Gridap on airfoil boundary
+    for (i,val) in enumerate(Gridap.FESpaces.get_dirichlet_dof_tag(uh.fe_space) .== 3)
+        if val
+            uh.dirichlet_values[i] = 0.0
+        end
+    end
+
+
+    if !isnothing(filename)
+        writevtk(Ω, filename, cellfields=["uh" => uh, "ph" => ph])
+    end
+    
+
+    return uh,ph
+end
+
+
 function solve_inc_adj_u(model, primal_sol_uh::Tuple, primal_sol_ph::Tuple, adjstart::Tuple, params::Dict{Symbol,Any}; filename="res-adj-unsteady")
-    @unpack D,order,t_endramp,t0,tf,θ,dt,Ω = params
+    @unpack D,order,t_endramp,t0,tf,θ,dt,Ω,d_boundary = params
 
     uh0, UH = primal_sol_uh
     ph0, PH = primal_sol_ph
@@ -109,15 +171,15 @@ function solve_inc_adj_u(model, primal_sol_uh::Tuple, primal_sol_ph::Tuple, adjs
     V_adj,Q_adj = create_adjoint_spaces(model, params)
 
     #To be shifted outside
-    d_lift = VectorValue(0, 0.0)
-    d_drag = VectorValue(1.0, 0)
+    # d_lift = VectorValue(0, 0.0)
+    # d_drag = VectorValue(1.0, 0)
 
-    d_boundary = d_drag + d_lift
+    # d_boundary = d_drag + d_lift
 
 
     uin(t) = (t < t_endramp) ? (1.0 - 1 .*(t_endramp-t)/t_endramp) : 1.0
 
-    d0(x,t) = D == 2 ? VectorValue(-1 .*uin(t), 0.0) :  VectorValue(-1 .*uin(t), 0.0, 0.0)
+    d0(x,t) = d_boundary #D == 2 ? VectorValue(-1 .*uin(t), 0.0) :  VectorValue(-1 .*uin(t), 0.0, 0.0)
     d0(t::Real) = x -> d0(x,t)
     u_walls(x,t) = VectorValue(zeros(D)...)
     u_walls(t::Real) = x -> u_walls(x,t)
@@ -135,11 +197,10 @@ function solve_inc_adj_u(model, primal_sol_uh::Tuple, primal_sol_ph::Tuple, adjs
     
     Nfields = length(UH)
 
-    ΦUH = [copy(ϕuh0.free_values)]
-    ΦPH = [copy(ϕph0.free_values)]
+    ΦUH = [copy(UH[Nfields])]
+    ΦPH = [copy(PH[Nfields])]
 
-    copyto!(uh0.free_values, UH[Nfields])
-    copyto!(ph0.free_values, PH[Nfields])
+    copyto!(params[:uh].free_values, UH[Nfields])
 
     uh = uh0
     ph = ph0
@@ -189,25 +250,23 @@ function solve_inc_adj_u(model, primal_sol_uh::Tuple, primal_sol_ph::Tuple, adjs
 end
 
 
-function solve_inc_adj_s(model, (uh0, UH), (ph0, PH), params::Dict{Symbol,Any}; filename="res-adj-steady")
+
+function solve_inc_adj_s(model, uh, ph, params::Dict{Symbol,Any}; filename="res-adj-steady")
     
-    @unpack Ω = params
+    @unpack Ω, d_boundary = params
+    copyto!(params[:uh].free_values, uh.free_values)
 
-    copyto!(uh0.free_values, UH[end])
-    copyto!(ph0.free_values, PH[end])
-    uh = uh0
-    ph = ph0
+  
+    # #To be shifted outside
+    # d_lift = VectorValue(0, 0.0)
+    # d_drag = VectorValue(1.0, 0)
 
-    #To be shifted outside
-    d_lift = VectorValue(0, 0.0)
-    d_drag = VectorValue(1.0, 0)
-
-    d_boundary = d_drag + d_lift
+    # d_boundary = d_drag + d_lift
 
 
     V_adj,Q_adj = create_adjoint_spaces(model, params)
 
-    U_adj = TrialFESpace(V_adj, [-d_boundary, VectorValue(0, 0)])
+    U_adj = TrialFESpace(V_adj, [d_boundary, VectorValue(0, 0)])
     P_adj = TrialFESpace(Q_adj, 0.0)
 
     Y_adj = MultiFieldFESpace([V_adj, Q_adj])
@@ -227,7 +286,7 @@ function solve_inc_adj_s(model, (uh0, UH), (ph0, PH), params::Dict{Symbol,Any}; 
     mkpath(res_path)
 
     if !isnothing(filename)
-        writevtk(Ω, joinpath(res_path, "$(filename)" * ".vtu"), cellfields=["phi-u" => ϕu, "phi-p" => ϕp, "uh0" => uh0, "ph0" => ph0])
+        writevtk(Ω, joinpath(res_path, "$(filename)" * ".vtu"), cellfields=["phi-u" => ϕu, "phi-p" => ϕp, "uh0" => params[:uh]])
     end
 
     return ϕu, ϕp

@@ -2,7 +2,7 @@ using IncompressibleAdjoint
 xx = collect(LinRange(0.0,1.0,1000))
 yy = NACA00.(xx)
 
-ww = 0.1 .*ones(3)
+ww = 0.1 .*ones(6)
 dz = 0.0
 
 ccst = CST(ww,-ww)

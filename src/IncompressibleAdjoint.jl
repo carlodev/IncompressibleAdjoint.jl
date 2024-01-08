@@ -31,6 +31,10 @@ include("ThetaMethodBackward.jl")
 include(joinpath("Equations","Equations.jl"))
 
 
+export create_ũ_vector
+export update_ũ
+export update_ũ_vector!
+include("LinearUtilities.jl")
 
 export CST
 export AirfoilCST
@@ -51,7 +55,8 @@ export NACA00
 export CST_NACA0012
 include("GeometryShapes.jl")
 
-export solve_inc_primal
+export solve_inc_primal_u
+export solve_inc_primal_s
 export solve_inc_adj_u
 export solve_inc_adj_s
 include("Solve_primal_and_adjoint_mix.jl")
@@ -61,8 +66,9 @@ export compute_airfoil_forces
 export compute_airfoil_coefficients
 include("AdjointIterators.jl")
 
-export istantaneus_CL_CD
-export average_CL_CD
+export average_field!
+export istantaneus_CD_CL
+export average_CD_CL
 include("TimeAverage.jl")
 
 
