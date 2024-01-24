@@ -20,13 +20,12 @@ function primal_steady_SUPG(params::Dict{Symbol,Any})
     @unpack ν, dt, dΩ, D, Ω, θ,uh = params
     h = h_param(Ω, D)
     updatekey(params, :h,h)
-
-
+    
 
     a((u, p), (v, q)) = ∫(ν * ∇(v) ⊙ ∇(u) + ∇(p) ⊙ v + q * (∇ ⋅ u))dΩ + ∫(v ⊙ (conv ∘ (uh, ∇(u))))dΩ
 
     Rm(u, p) = conv ∘ (uh, ∇(u)) + ∇(p)
-    astab((u, p), (v, q)) = ∫( τsu(uh, h,ν,dt) ⋅ (uh ⋅ ∇(v) + ∇(q)) ⊙ Rm(u, p))dΩ + ∫( τb(uh, h,ν,dt) ⋅ (∇ ⋅ v) ⊙ (∇ ⋅ u))dΩ
+    astab((u, p), (v, q)) = ∫( τsu(uh, h,ν,dt) ⋅ ((conv ∘ (uh, ∇(v))) + ∇(q)) ⊙ Rm(u, p))dΩ + ∫( τb(uh, h,ν,dt) ⋅ (∇ ⋅ v) ⊙ (∇ ⋅ u))dΩ
 
     res_prim((u, p), (v, q)) = a((u, p), (v, q)) + astab((u, p), (v, q))
 
@@ -35,7 +34,27 @@ function primal_steady_SUPG(params::Dict{Symbol,Any})
 end
 
 function primal_steady_VMS(params::Dict{Symbol,Any})
-    @error("Not implemented yet")
+    @unpack ν, dt, dΩ, D, Ω, θ,uh,Cᵢ = params
+    G = compute_G(Ω,params)
+    GG = compute_GG(Ω,params)
+    gg = compute_gg(Ω,params)
+
+    updatekey(params, :G,G)
+    updatekey(params, :GG,GG)
+    updatekey(params, :gg,gg)
+
+    Rm(u, p) = conv ∘ (uh, ∇(u)) + ∇(p)
+
+    TRm(u, p) = τm(uh,params) * Rm(u, p)
+
+    Bᴳ((u, p), (v, q)) = ∫((u ⋅ ∇(u)) ⋅ v)dΩ - ∫((∇ ⋅ v) * p)dΩ + ∫((q * (∇ ⋅ u)))dΩ + ν * ∫(∇(v) ⊙ ∇(u))dΩ
+    B_SUPG((u, p), (v, q)) = ∫((uh ⋅ ∇(v) + ∇(q)) ⊙ TRm(u, p))dΩ + ∫((∇ ⋅ v) ⊙ (τc(uh, params) * (∇ ⋅ u) ))dΩ
+    B_VMS1((u, p), (v, q)) = ∫((uh ⋅ (∇(v))') ⊙ TRm(u, p))dΩ
+
+
+    res_prim((u, p), (v, q)) = Bᴳ((u, p), (v, q)) +B_SUPG((u, p), (v, q)) + B_VMS1((u, p), (v, q))
+
+    return res_prim
 
 end
 

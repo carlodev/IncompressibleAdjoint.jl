@@ -1,8 +1,14 @@
+
 function create_ũ_vector(zfv1::AbstractVector)
     return [deepcopy(zfv1), deepcopy(zfv1), deepcopy(zfv1), deepcopy(zfv1)]
 end
 
 
+"""
+    update_ũ(ũ_vec::Vector)
+
+It extimates the velocity field at the next time step using a Taylor-like expansion based on th previous 4 time steps.
+"""
 function update_ũ(ũ_vec::Vector)
     coeff = [2.1875, -2.1875, 1.3125, -0.3125]
     updt_ũ = ũ_vec[1]*coeff[1] + ũ_vec[2] *coeff[2] + ũ_vec[3] *coeff[3] + ũ_vec[4]*coeff[4]

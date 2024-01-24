@@ -4,7 +4,7 @@ using IncompressibleAdjoint.Equations
 function create_primal_spaces(model, params::Dict{Symbol,Any})
     @unpack tagname, order, D = params
     reffeᵤ = ReferenceFE(lagrangian, VectorValue{D,Float64}, order )
-    V = TestFESpace(model, reffeᵤ, conformity=:H1, dirichlet_tags=["inlet", "limits", tagname])
+    V = TestFESpace(model, reffeᵤ, conformity=:H1, dirichlet_tags=["inlet", "limits", tagname],  dirichlet_masks=[(true,true), (false,true),(true,true) ])
     reffeₚ = ReferenceFE(lagrangian, Float64, order)
     Q = TestFESpace(model, reffeₚ, conformity=:H1, dirichlet_tags=["outlet"])
 
@@ -14,7 +14,7 @@ end
 function create_adjoint_spaces(model, params::Dict{Symbol,Any})
     @unpack tagname, order, D = params
     reffe_u_adj = ReferenceFE(lagrangian, VectorValue{D,Float64}, order)
-    V_adj = TestFESpace(model, reffe_u_adj, conformity=:H1, dirichlet_tags=[tagname, "outlet"])
+    V_adj = TestFESpace(model, reffe_u_adj, conformity=:H1, dirichlet_tags=[tagname, "outlet","limits"], dirichlet_masks=[(true,true), (true,true),(false,true) ])
     reffe_p_adj = ReferenceFE(lagrangian, Float64, order)
     Q_adj = TestFESpace(model, reffe_p_adj, conformity=:H1, dirichlet_tags="inlet")
     
@@ -52,9 +52,11 @@ function solve_inc_primal_u(model, params::Dict{Symbol,Any}; filename="inc-resul
     updatekey(params,:dΩ,dΩ)
 
 
-    uh0 = interpolate_everywhere(u0(0.0), U(0.0))
-    ph0 = interpolate_everywhere(p0(0.0), P(0.0))
-    xh0 = interpolate_everywhere([uh0, ph0], X(0.0))
+    uh0 = interpolate(u0(0.0), U(0.0))
+    dudt = interpolate(u_walls(0.0), U(0.0))
+
+    ph0 = interpolate(p0(0.0), P(0.0))
+    xh0 = interpolate([uh0, ph0], X(0.0))
 
     updatekey(params, :uh,uh0)
     m, res, rhs = eq_primal_unsteady(params)
@@ -76,11 +78,11 @@ function solve_inc_primal_u(model, params::Dict{Symbol,Any}; filename="inc-resul
 
     UH = [copy(uh0.free_values)]
     PH = [copy(ph0.free_values)]
+    
     uh = uh0
     ph = ph0
 
-    uvector = create_ũ_vector(uh.free_values)
-    println("uvec created")
+    uvector = create_ũ_vector(uh0.free_values)
 
     res_path = "Results_primal"
     mkpath(res_path)
@@ -92,15 +94,18 @@ function solve_inc_primal_u(model, params::Dict{Symbol,Any}; filename="inc-resul
             pvd[t] = createvtk(Ω, joinpath(res_path, "$(filename)_$t" * ".vtu"), cellfields=["uh" => uh, "ph" => ph])
             push!(UH, copy(uh.free_values))
             push!(PH, copy(ph.free_values))
+            println("Primal solved at time step $t")
 
             update_ũ_vector!(uvector,uh.free_values)
-            println("udate uvec")
+            u_new=update_ũ(uvector)
+            copyto!(params[:uh].free_values,u_new)
 
-            copyto!(params[:uh].free_values,update_ũ(uvector))
+
         end
     end
 
-    return (uh, UH), (ph, PH)
+    DUHDT = vcat(0.0,UH[2:end] -UH[1:end-1])./dt
+    return (uh,dudt, UH, DUHDT), (ph, PH)
 end
 
 
@@ -115,21 +120,21 @@ function solve_inc_primal_s(model, params::Dict{Symbol,Any}; filename="inc-stead
     p0 = 0.0
 
     U = TrialFESpace(V, [u0, u0, u_walls])
-    P = TrialFESpace(Q, p0)
+    P = TrialFESpace(Q, [p0])
 
     Y = MultiFieldFESpace([V, Q])
     X = MultiFieldFESpace([U, P])
 
-    degree = order * 2 
+    degree = 8
     Ω = Triangulation(model)
     dΩ = Measure(Ω, degree)
     updatekey(params,:Ω,Ω)
     updatekey(params,:dΩ,dΩ)
 
 
-    uh = interpolate_everywhere(u0, U)
-    ph = interpolate_everywhere(p0, P)
-    xh = interpolate_everywhere([uh, ph], X)
+    uh = interpolate(u0, U)
+    ph = interpolate(-5.0, P)
+    xh = interpolate([uh, ph], X)
 
     updatekey(params, :uh,uh)
     res, rhs = eq_primal_steady(params)
@@ -140,15 +145,10 @@ function solve_inc_primal_s(model, params::Dict{Symbol,Any}; filename="inc-stead
     ls = LUSolver()
     solver = LinearFESolver(ls)
 
-    Gridap.solve!(xh, solver, op)
-    uh, ph = xh 
-
-    #Correct bug Gridap on airfoil boundary
-    for (i,val) in enumerate(Gridap.FESpaces.get_dirichlet_dof_tag(uh.fe_space) .== 3)
-        if val
-            uh.dirichlet_values[i] = 0.0
-        end
-    end
+    # for i = 1:1:5
+        Gridap.solve!(xh, solver, op)
+        uh, ph = xh 
+    # end
 
 
     if !isnothing(filename)
@@ -170,12 +170,7 @@ function solve_inc_adj_u(model, primal_sol_uh::Tuple, primal_sol_ph::Tuple, adjs
     
     V_adj,Q_adj = create_adjoint_spaces(model, params)
 
-    #To be shifted outside
-    # d_lift = VectorValue(0, 0.0)
-    # d_drag = VectorValue(1.0, 0)
-
-    # d_boundary = d_drag + d_lift
-
+  
 
     uin(t) = (t < t_endramp) ? (1.0 - 1 .*(t_endramp-t)/t_endramp) : 1.0
 
@@ -190,10 +185,10 @@ function solve_inc_adj_u(model, primal_sol_uh::Tuple, primal_sol_ph::Tuple, adjs
     Y_adj = MultiFieldFESpace([V_adj, Q_adj])
     X_adj = TransientMultiFieldFESpace([U_adj, P_adj])
 
-    ϕuh0 = interpolate_everywhere(VectorValue(0, 0), U_adj(0.0))
-    ϕph0 = interpolate_everywhere(0.0, P_adj)
+    ϕuh0 = interpolate(VectorValue(0, 0), U_adj(0.0))
+    ϕph0 = interpolate(0.0, P_adj)
 
-    ϕxh0 = interpolate_everywhere([ϕuh0, ϕph0], X_adj(0.0))
+    ϕxh0 = interpolate([ϕuh0, ϕph0], X_adj(0.0))
     
     Nfields = length(UH)
 
@@ -238,8 +233,7 @@ function solve_inc_adj_u(model, primal_sol_uh::Tuple, primal_sol_ph::Tuple, adjs
             push!(ΦPH, copy(ϕph.free_values))
 
             IDX = Nfields - idx + 1
-
-            println(IDX)
+            println("Adjoint solved at time step $t")
             copyto!(params[:uh].free_values, UH[IDX])
             copyto!(params[:ph].free_values, PH[IDX])
 
@@ -256,18 +250,33 @@ function solve_inc_adj_s(model, uh, ph, params::Dict{Symbol,Any}; filename="res-
     @unpack Ω, d_boundary = params
     copyto!(params[:uh].free_values, uh.free_values)
 
-  
-    # #To be shifted outside
-    # d_lift = VectorValue(0, 0.0)
-    # d_drag = VectorValue(1.0, 0)
 
-    # d_boundary = d_drag + d_lift
+    Γout = BoundaryTriangulation(model; tags="outlet")
+    dΓout = Measure(Γout, 4)
+    nΓout = -1 .* get_normal_vector(Γout)
 
+    Γlim = BoundaryTriangulation(model; tags="limits")
+    dΓlim = Measure(Γlim, 4)
+    nΓlim = -1 .* get_normal_vector(Γlim)
+
+    Γairfoil = BoundaryTriangulation(model; tags="airfoil")
+    dΓairfoil = Measure(Γairfoil, 4)
+    nΓairfoil = -1 .* get_normal_vector(Γairfoil)
+
+
+    updatekey(params, :dΓout,dΓout)
+    updatekey(params, :nΓout,nΓout)
+
+    updatekey(params, :dΓlim,dΓlim)
+    updatekey(params, :nΓlim,nΓlim)
+    
+    updatekey(params, :dΓairfoil,dΓairfoil)
+    updatekey(params, :nΓairfoil,nΓairfoil)
 
     V_adj,Q_adj = create_adjoint_spaces(model, params)
-
-    U_adj = TrialFESpace(V_adj, [d_boundary, VectorValue(0, 0)])
-    P_adj = TrialFESpace(Q_adj, 0.0)
+    println(d_boundary)
+    U_adj = TrialFESpace(V_adj, [d_boundary, VectorValue(0, 0),VectorValue(0, 0)])
+    P_adj = TrialFESpace(Q_adj,0.0)
 
     Y_adj = MultiFieldFESpace([V_adj, Q_adj])
     X_adj = MultiFieldFESpace([U_adj, P_adj])

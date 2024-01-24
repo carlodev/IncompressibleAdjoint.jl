@@ -1,6 +1,14 @@
 ####################################################################
 #STEADY ADJOINT
 ####################################################################
+
+function adjoint_conservation(params)
+    @unpack uh = params
+    Rmadj(u, p) =  - ∇(p) - transpose(∇(u)) ⋅ uh - ∇(u)⋅uh
+    Rcadj(u) = -1 .* (∇ ⋅ (u))
+    return Rmadj, Rcadj
+end
+
 function eq_adjoint_steady(params::Dict{Symbol,Any})
     @unpack method,D,dΩ = params
     if method==:VMS
@@ -15,25 +23,37 @@ function eq_adjoint_steady(params::Dict{Symbol,Any})
 end
 
 
+"""
+    adjoint_steady_SUPG(params::Dict{Symbol,Any})
+
+It provides the set of Adjoint Equations
+Symbol convention: O. Soto, & R. Lohner. (2004). On the Boundary Computation of Flow Sensitivities. https://doi.org/10.2514/6.2004-112
+SUPG Stabilization: Srinath, D. N., & Mittal, S. (2010). An adjoint method for shape optimization in unsteady viscous flows. Journal of Computational Physics, 229(6), 1994–2008. https://doi.org/10.1016/j.jcp.2009.11.019
+"""
 function adjoint_steady_SUPG(params::Dict{Symbol,Any})
     
     @unpack ν, dt, dΩ, D, Ω, θ,uh = params
     h = h_param(Ω, D)
     updatekey(params,:h,h)   
-    Rmadj(u, p) = -uh ⋅ ∇(u) - ∇(u) ⋅ uh - ∇(p)
-    Rcadj(u) = -1 .* (∇ ⋅ (u))
+
+
+    Rmadj, Rcadj = adjoint_conservation(params)
+
+
+ 
 
     a_adj((u, p), (v, q)) = ∫(ν * ∇(v) ⊙ ∇(u) - q * (∇ ⋅ u))dΩ + ∫(v ⊙ Rmadj(u, p))dΩ
-    a_adj_stab((u, p), (v, q)) = ∫( τsu(uh, h,ν,dt) ⋅ (-uh ⋅ ∇(v) - ∇(v) ⋅ uh - ∇(q)) ⊙ Rmadj(u, p))dΩ +
+
+
+    a_adj_stab((u, p), (v, q)) = ∫( τsu(uh, h,ν,dt) ⋅ (- transpose(∇(v)) ⋅ uh - ∇(v)⋅uh- ∇(q)) ⊙ Rmadj(u, p))dΩ +
                                  -1 * ∫( τb(uh, h,ν,dt) ⋅ (∇ ⋅ v) ⊙ Rcadj(u))dΩ
 
-
-
-    res_adj((u, p), (v, q)) = a_adj((u, p), (v, q)) + a_adj_stab((u, p), (v, q))
+    res_adj((u, p), (v, q)) = a_adj((u, p), (v, q)) + a_adj_stab((u, p), (v, q)) #+ bc((u, p), (v, q))
 
     return res_adj
 
 end
+
 
 function adjoint_steady_VMS(params::Dict{Symbol,Any})
 
@@ -59,13 +79,21 @@ function eq_adjoint_unsteady(params::Dict{Symbol,Any})
 end
 
 
+"""
+    adjoint_unsteady_SUPG(params::Dict{Symbol,Any})
+
+It provides the set of Adjoint Equations
+Symbol convention: O. Soto, & R. Lohner. (2004). On the Boundary Computation of Flow Sensitivities. https://doi.org/10.2514/6.2004-112
+SUPG Stabilization: Srinath, D. N., & Mittal, S. (2010). An adjoint method for shape optimization in unsteady viscous flows. Journal of Computational Physics, 229(6), 1994–2008. https://doi.org/10.1016/j.jcp.2009.11.019
+"""
 function adjoint_unsteady_SUPG(params::Dict{Symbol,Any})
     
     @unpack ν, dt, dΩ, D, Ω, θ,uh = params
     h = h_param(Ω, D)
     updatekey(params,:h,h)   
-    Rmadj(u, p) = -uh ⋅ ∇(u) - ∇(u) ⋅ uh - ∇(p)
-    Rcadj(u) = -1 .* (∇ ⋅ (u))
+
+    Rmadj, Rcadj = adjoint_conservation(params)
+
 
     a_adj((u, p), (v, q)) = ∫(ν * ∇(v) ⊙ ∇(u) - q * (∇ ⋅ u))dΩ + ∫(v ⊙ Rmadj(u, p))dΩ
     a_adj_stab((u, p), (v, q)) = ∫( τsu(uh, h,ν,dt) ⋅ (-uh ⋅ ∇(v) - ∇(v) ⋅ uh - ∇(q)) ⊙ Rmadj(u, p))dΩ +

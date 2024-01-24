@@ -47,6 +47,16 @@ return ControlPoints(a.xcoordinate,yc,a.tag)
 end
 
 
+function perturb_DesignParameters(a::ControlPoints, i::Int64, δ::Vector{Float64})
+    xc = copy(a.xcoordinate)
+    yc = copy(a.ycoordinate)
+    xc[i] = xc[i] + δ[1]
+    yc[i] = yc[i] + δ[2]
+    
+    return ControlPoints(xc,yc,a.tag)
+end
+    
+
 function perturb_DesignParameters(a::ControlPoints, u::ShiftUpdate; tol=0.0025)
     @assert a.tag == u.tag
     δt = get_tag_shift(u,"top")

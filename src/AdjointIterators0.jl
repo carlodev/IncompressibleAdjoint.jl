@@ -1,47 +1,14 @@
 ###################################################################################
 #OBJECTIVE FUNCTIONS
 ##################################################################################
-"""
-    compute_drag(uh,ph,nΓ,dΓ,params)
 
-Objective function minimizing the Drag
-"""
-function compute_drag(uh,ph,nΓ,dΓ,params)
-    CD, _ = compute_airfoil_coefficients(uh,ph,nΓ,dΓ,params)
-    return CD, CD
-end
-
-
-"""
-    compute_lift(uh,ph,nΓ,dΓ,params)
-
-Objective function, it wants the CL to reach `CLtarget`. It return CL so it can be monitored.
-"""
-function compute_lift(uh,ph,nΓ,dΓ,params; CLtarget=0.75)
-    _, CL = compute_airfoil_coefficients(uh,ph,nΓ,dΓ,params)
-    return 0.5*(CLtarget-0.75)^2, CL
-end
-###################################################################################
-#Iterators
-##################################################################################
-"""
-    compute_airfoil_forces(uh,ph,nΓ,dΓ,params::Dict{Symbol,Any})
-
-It computes Drag and Lift over params[:tagname] boundary. It takes into account pressure and velocity gradient.
-It needs the normals pointings outward respect to the body.
-"""
 function compute_airfoil_forces(uh,ph,nΓ,dΓ,params::Dict{Symbol,Any})
     @unpack tagname,ν = params
-    IForce = ∫( -ph ⋅ nΓ+ ν* transpose(∇(uh)) ⋅ nΓ)dΓ #+ 
+    IForce = ∫(-ph ⋅ nΓ + ν* transpose(∇(uh)) ⋅ nΓ)dΓ
     D,L = sum(IForce)
     return D,L
 end
 
-"""
-    compute_airfoil_coefficients(uh,ph,nΓ,dΓ,params::Dict{Symbol,Any})
-
-Compute the normaization of airfoil forces, obtaining CD and CL
-"""
 function compute_airfoil_coefficients(uh,ph,nΓ,dΓ,params::Dict{Symbol,Any})
     @unpack chord, u_in = params
     q = 0.5 * chord*u_in
@@ -51,13 +18,6 @@ function compute_airfoil_coefficients(uh,ph,nΓ,dΓ,params::Dict{Symbol,Any})
     return CD,CL
 end
 
-"""
-    obj_fun(model::DiscreteModel, params::Dict{Symbol,Any}, uh,ph, fun)
-
-Wrapper that evaluates `fun` the objective function. `fun` is a user-defined function.
-See eg. `compute_drag`, `compute_lift` functions. It return fitnessval,E. 
-`fitnessval` is the function value that need to be minimized. `E` is a value that we want to monitor.
-"""
 function obj_fun(model::DiscreteModel, params::Dict{Symbol,Any}, uh,ph, fun)
     @unpack tagname= params
     Γ = BoundaryTriangulation(model; tags=tagname)
@@ -69,56 +29,28 @@ function obj_fun(model::DiscreteModel, params::Dict{Symbol,Any}, uh,ph, fun)
     return fitnessval, E 
 end
 
-function rotation(n::VectorValue{2,Float64})
-    n1, n2 = [n...]
-    VectorValue(-n2, n1)
-end
 
-"""
-    compute_sensitivity(model::DiscreteModel, params::Dict{Symbol,Any}, uh0,ph0,ϕu0, ϕp0; objective_function=compute_drag)
-
-From the solution of the primal flow `uh0` `ph0`, and the adjoint flow `ϕu0` `ϕp0` it computes the senstivities according to the objective function.
-J2 contributions are splitted and the gradients computed individually to avoid numerical cancellation
-"""
-function  compute_sensitivity(model::DiscreteModel, params::Dict{Symbol,Any}, uh0,ph0,ϕu0, ϕp0; objective_function=compute_drag)
+function  compute_sensitivity(model::DiscreteModel, params::Dict{Symbol,Any}, uh,ph,ϕu, ϕp; objective_function=compute_drag)
     @unpack ν,tagname,i =params
-    @unpack D,order,t_endramp,t0,tf,θ,dt,u_in, d_boundary = params
-
-    V,Q = create_primal_spaces(model,params)
-
-    u0 = D == 2 ? VectorValue(u_in, 0.0) :  VectorValue(u_in, 0.0, 0.0)
-    u_walls = D == 2 ? VectorValue(0.0, 0.0) :  VectorValue(0.0, 0.0, 0.0)
-    p0 = 0.0
-
-    U = TrialFESpace(V, [u0, u0, u_walls])
-    P = TrialFESpace(Q, p0)
-
-
-    V_adj,Q_adj = create_adjoint_spaces(model, params)
-    U_adj = TrialFESpace(V_adj, [d_boundary, VectorValue(0, 0),VectorValue(0, 0)])
-    P_adj = TrialFESpace(Q_adj)
-    
-    
-    uh = FEFunction(U,uh0.free_values)
-    ph = FEFunction(P,ph0.free_values)
-    ϕu = FEFunction(U_adj,ϕu0.free_values)
-    ϕp = FEFunction(P_adj,ϕp0.free_values)
-
     Ω = Triangulation(model)
     dΩ = Measure(Ω, 8)
     J1, _ = obj_fun(model,params, uh,ph, objective_function)
+
+    
 
     Γ = BoundaryTriangulation(model; tags=tagname)
     dΓ = Measure(Γ, 8)
     nΓ =  -1 .*get_normal_vector(Γ) #-1, pointing outward
 
-    J2_1 = sum(∫(ϕu⋅(transpose(∇(uh))⋅uh ))dΩ) 
-    J2_2 = sum(∫(ϕu⋅(∇(ph)))dΩ)
-    J2_3 = sum(∫(ϕp⋅(∇⋅(uh)))dΩ)
-    J2_4 = ν*sum(∫((∇(ϕu)⊙∇(uh)))dΩ)
-    J2_5 = -ν* sum(∫(ν*ϕu⋅transpose(∇(uh))⋅ nΓ)dΓ)
+    J2_1 = sum(∫(ϕu⊙(transpose(∇(uh))⋅uh ))dΩ) 
+    J2_2 = sum(∫(ϕu⊙(∇(ph)))dΩ)
+    J2_3 = sum(∫(ϕp⊙(∇⋅(uh)))dΩ)
+    J2_4 = sum(∫((ν*∇(ϕu)⊙∇(uh)))dΩ)
+    J2_5 = - sum(∫(ν*ϕu⋅(∇(uh))⋅ nΓ)dΓ)
    
     writevtk(Ω, "MeshPerturb/model-$(100+i)", cellfields=["uh"=>uh,"ph"=>ph, "uadj"=>ϕu,"padj"=>ϕp])
+
+    # J2= - sum(∫((∇(ph) ⋅ nΓ)⋅(ϕu ⋅ nΓ))dΓ) - sum(∫(ν*(nΓ⋅∇(ϕu))⋅ (nΓ⋅∇(uh)))dΓ) - sum(∫((ϕp ⋅ nΓ)⋅(∇(uh) ⋅ nΓ))dΓ) 
 
     return J1,(J2_1,J2_2,J2_3,J2_4,J2_5)
 end

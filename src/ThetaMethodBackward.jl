@@ -23,12 +23,23 @@ using Gridap.FESpaces: collect_cell_vector
 using Gridap.FESpaces: assemble_vector!
 using LinearAlgebra: fillstored!
 
+
 struct ThetaMethodBackw <: ODESolver
     nls::NonlinearSolver
     dt::Float64
     θ::Real
 end
 
+"""
+    Gridap.ODEs.ODETools.solve_step!(uf::AbstractVector,
+    solver::ThetaMethodBackw,
+    op::AffineODEOperator,
+    u0::AbstractVector,
+    t0::Real,
+    cache)
+
+Support the new type `ThetaMethodBackw` which allows integration back in time, useful for unsteady adjoint problems
+"""
 function Gridap.ODEs.ODETools.solve_step!(uf::AbstractVector,
     solver::ThetaMethodBackw,
     op::AffineODEOperator,
@@ -57,8 +68,9 @@ ode_cache = update_cache!(ode_cache,op,tα)
 
 _matrix_and_vector_back!(A,b,op,tα,dtα,u0,ode_cache,vθ)
 
-println(Statistics.maximum(abs.(b)))
-println(norm(diag(A)))
+## Useful to check if simulation is diverging
+# println(Statistics.maximum(abs.(b)))
+# println(norm(diag(A)))
 
 afop = Gridap.Algebra.AffineOperator(A,b)
 
@@ -67,7 +79,6 @@ newmatrix = true
 l_cache = Gridap.Algebra.solve!(uf,solver.nls,afop,l_cache,newmatrix)
 
 uf = u0 - uf/α
-# uf = uf*((1-solver.θ)/solver.θ)-u0*(1/solver.θ)
 
 
 cache = (ode_cache, vθ, A, b, l_cache)

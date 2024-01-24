@@ -1,7 +1,17 @@
+using FillArrays
+using LinearAlgebra
+using Parameters
+
 val(x) = x
 val(x::Gridap.Fields.ForwardDiff.Dual) = x.value
 conv(u, ∇u) = (∇u') ⋅ u
 
+"""
+    τsu(u, h, ν::Real, dt::Real)
+
+Stabilization parameter for SUPG formulation.
+Janssens, B. (2014). Numerical modeling and experimental investigation of ﬁne particle coagulation and dispersion in dilute ﬂows.
+"""
 function τsu(u, h, ν::Real, dt::Real)
 
     function τsu(u, h)
@@ -21,12 +31,26 @@ function τsu(u, h, ν::Real, dt::Real)
     return τsu ∘ (u, h)
 end
 
+"""
+    τb(u, h, ν::Real, dt::Real)
+
+Stabilization parameter for SUPG formulation.
+Janssens, B. (2014). Numerical modeling and experimental investigation of ﬁne particle coagulation and dispersion in dilute ﬂows.
+"""
 function τb(u, h, ν::Real, dt::Real)
     return (u ⋅ u) * τsu(u, h, ν, dt)
 end
 
 
-function τm(uu, G, GG, ν, dt)
+"""
+    τm(uu, params::Dict{Symbol,Any})
+
+Stabilization parameter for VMS formulation.
+Bazilevs, Y., Calo, V. M., Cottrell, J. A., Hughes, T. J. R., Reali, A., & Scovazzi, G. (2007). Variational multiscale residual-based turbulence modeling for large eddy simulation of incompressible flows. Computer Methods in Applied Mechanics and Engineering, 197(1–4), 173–201. https://doi.org/10.1016/j.cma.2007.07.016
+"""
+function τm(uu, params::Dict{Symbol,Any})
+    
+    @unpack  G,GG,gg,Cᵢ,ν,dt = params
 
     function τm(uu, G, GG)
         τ₁ = Cᵢ[1] * (2 / dt)^2 #Here, you can increse the 2 if CFL high
@@ -49,7 +73,13 @@ function τm(uu, G, GG, ν, dt)
 end
 
 
+"""
+    τc(uu, params::Dict{Symbol,Any})
 
-function τc(uu, gg, G, GG, ν, dt)
-    return 1 / (τm(uu, G, GG, ν, dt) ⋅ gg)
+Stabilization parameter for VMS formulation.
+Bazilevs, Y., Calo, V. M., Cottrell, J. A., Hughes, T. J. R., Reali, A., & Scovazzi, G. (2007). Variational multiscale residual-based turbulence modeling for large eddy simulation of incompressible flows. Computer Methods in Applied Mechanics and Engineering, 197(1–4), 173–201. https://doi.org/10.1016/j.cma.2007.07.016
+"""
+function τc(uu, params::Dict{Symbol,Any})
+ @unpack   gg = params
+    return 1 / (τm(uu,params) ⋅ gg)
 end

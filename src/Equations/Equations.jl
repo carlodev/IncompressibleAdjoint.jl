@@ -10,9 +10,12 @@ export eq_primal_unsteady
 export eq_adjoint_steady
 export eq_adjoint_unsteady
 
+export eq_direct_differentiation_steady
+
 include("EquationsOperations.jl")
 include("StabParams.jl")
 include("PrimalEquations.jl")
 include("AdjointEquations.jl")
+include("DirectDifferentiation.jl")
 
 end
