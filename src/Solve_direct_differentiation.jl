@@ -1,4 +1,5 @@
 using IncompressibleAdjoint.Equations
+using IncompressibleAdjoint
 include("Morph.jl")
 
 function create_direct_differentiation_spaces(model, params::Dict{Symbol,Any})
@@ -15,34 +16,37 @@ end
 
 
 function solve_inc_direct_differentiation_s(model,uh::SingleFieldFEFunction, params::Dict{Symbol,Any}, point::VectorValue, nb::VectorValue; filename="inc-direct-diff")
-    @unpack D,order,tagname = params
+    @unpack D,order,tagname,δ = params
 
     V,Q = create_direct_differentiation_spaces(model,params)
 
-    function morph_kernel(x)
-        R = get_radius_shift(δ)
-        println(point)
-    
+    function node_filter(x)
+        R = 0.001 #get_radius_shift(nb.*δ)
         dist = compute_point_dist(x, point)
-        δ.*morph_kernel(dist,R)
+        morph_kernel(dist,R)
     end
 
     u_walls = VectorValue(zeros(D)...)
 
-    utagname = -∇(uh)⋅nb*morph_kernel(x)
+    P = TrialFESpace(Q, 0.0)
+    nf = interpolate_everywhere(node_filter,P)
+
+
+    utagname = -transpose(∇(uh))⋅(nb*nf)
 
     U = TrialFESpace(V, [u_walls,utagname])
-    P = TrialFESpace(Q, 0.0)
 
     Y = MultiFieldFESpace([V, Q])
     X = MultiFieldFESpace([U, P])
 
-    degree = order * 2 
+    degree = 8
     Ω = Triangulation(model)
     dΩ = Measure(Ω, degree)
     updatekey(params,:Ω,Ω)
     updatekey(params,:dΩ,dΩ)
+    
 
+    writevtk(Ω, "DirectDifferentiation/BC$(point[1])", cellfields=["BCU"=>utagname, "node_filter"=>nb*nf])
 
     uhb0 = interpolate(u_walls, U)
     phb0 = interpolate(0.0, P)

@@ -11,12 +11,19 @@ function eq_direct_differentiation_steady(params::Dict{Symbol,Any})
     return res_prim, rhs
 end
 
+"""
+    direct_differentiation_SUPG(params::Dict{Symbol,Any})
+
+Formulation from
+Janssens -P Vandenschrick -K Stevens -G Alessi, B. (n.d.). THE CONTINUOUS ADJOINT APPROACH APPLIED TO THE STABILIZED FINITE-ELEMENT FORMULATION OF THE INCOMPRESSIBLE NAVIER-STOKES EQUATIONS. www.euroturbo.eu
+"""
 function direct_differentiation_SUPG(params::Dict{Symbol,Any})
 
     @unpack ν, dt, dΩ, D, Ω, θ,uh = params
     h = h_param(Ω, D)
     updatekey(params, :h,h)
-    
+    ### ub ∂u/∂bi
+    ### pb ∂p/∂bi
     Rm(ub, pb) = transpose(∇(ub))⋅uh+∇(uh)⋅ub+∇(pb)
 
     a((ub, pb), (v, q)) = ∫(v⊙Rm(ub, pb))dΩ + ∫(q * (∇ ⋅ ub) )dΩ + ∫(ν * ∇(v) ⊙ ∇(ub) )dΩ
