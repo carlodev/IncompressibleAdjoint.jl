@@ -25,7 +25,7 @@ end
 
 function average_CD_CL(CD_vec::AbstractVector,CL_vec::AbstractVector, params::Dict{Symbol,Any})
     @unpack t0,tf,dt = params
-    idx_start = findfirst(x->x==5.0,collect(t0:dt:tf))
+    idx_start = findfirst(x->x==tf*0.75,collect(t0:dt:tf))
     CD_avg = Statistics.mean(CD_vec[idx_start:end])
     CL_avg = Statistics.mean(CL_vec[idx_start:end])
 return CD_avg,CL_avg

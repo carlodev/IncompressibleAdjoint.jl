@@ -6,7 +6,7 @@ It return the equation of a circle with the center in `[-diameter/2, 0.0]`.
 """
 function circle(x; diameter=1.0)
     rr = 0.5*diameter
-    return sqrt(rr^2-(x-rr)^2)
+    return @. sqrt(rr^2-(x-rr)^2)
 end
 
 """
@@ -16,7 +16,7 @@ Analytical function for a NACA00XX airfoil. `t=0.12` computes the NACA0012 and s
 """
 function NACA00(x; t=0.12)
     @assert 0<t<1.0
-    return 5*t*(0.2969*x^0.5-0.1260*x-0.3516*x^2+0.2843*x^3-0.1015*x^4)
+    return @. 5*t*(0.2969*x^0.5-0.1260*x-0.3516*x^2+0.2843*x^3-0.1015*x^4)
 end
 
 

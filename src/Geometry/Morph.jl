@@ -26,11 +26,13 @@ function compute_point_dist(coordinate, point::VectorValue)
 end
 
 
-
+#### This is the morphing function
 function morph_kernel(x::Real,r::Real)
     @assert x >= 0 
-    if x<r
-        return (cos(pi/2 * (x / r)^2 ))^2
+    xr = x/r
+    if xr<1
+        return (1-xr)^6 * (35/3 * xr^2 + 6 * xr +1)
+        #return (cos(pi/2 * (x / r)^2 ))^2
     else 
         return 0.0
     end

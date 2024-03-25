@@ -23,8 +23,10 @@ end
 
 
 
-function solve_inc_primal_u(model, params::Dict{Symbol,Any}; filename="inc-results")
+function solve_inc_primal_u(model, params::Dict{Symbol,Any}; filename="inc-results", uh00=nothing,ph00=nothing)
+    
     @unpack D,order,t_endramp,t0,tf,θ,dt = params
+
 
     V,Q = create_primal_spaces(model,params)
 
@@ -50,12 +52,21 @@ function solve_inc_primal_u(model, params::Dict{Symbol,Any}; filename="inc-resul
     dΩ = Measure(Ω, degree)
     updatekey(params,:Ω,Ω)
     updatekey(params,:dΩ,dΩ)
-
-
+    
     uh0 = interpolate(u0(0.0), U(0.0))
+    
+    ph0 = interpolate(p0(0.0), P(0.0))
+
+    if !isnothing(uh00)
+       uh0.free_values .=  uh00.free_values
+    end
+    
+    if !isnothing(ph00)
+        ph0.free_values .=  ph00.free_values
+    end
+
     dudt = interpolate(u_walls(0.0), U(0.0))
 
-    ph0 = interpolate(p0(0.0), P(0.0))
     xh0 = interpolate([uh0, ph0], X(0.0))
 
     updatekey(params, :uh,uh0)
@@ -106,6 +117,7 @@ function solve_inc_primal_u(model, params::Dict{Symbol,Any}; filename="inc-resul
 
     DUHDT = vcat(0.0,UH[2:end] -UH[1:end-1])./dt
     return (uh,dudt, UH, DUHDT), (ph, PH)
+
 end
 
 
@@ -179,13 +191,13 @@ function solve_inc_adj_u(model, primal_sol_uh::Tuple, primal_sol_ph::Tuple, adjs
     u_walls(x,t) = VectorValue(zeros(D)...)
     u_walls(t::Real) = x -> u_walls(x,t)
 
-    U_adj = TransientTrialFESpace(V_adj, [d0, u_walls])
+    U_adj = TransientTrialFESpace(V_adj, [d0, u_walls,u_walls])
     P_adj = TrialFESpace(Q_adj, 0.0)
 
     Y_adj = MultiFieldFESpace([V_adj, Q_adj])
     X_adj = TransientMultiFieldFESpace([U_adj, P_adj])
 
-    ϕuh0 = interpolate(VectorValue(0, 0), U_adj(0.0))
+    ϕuh0 = interpolate(VectorValue(0, 0), U_adj(0.0),)
     ϕph0 = interpolate(0.0, P_adj)
 
     ϕxh0 = interpolate([ϕuh0, ϕph0], X_adj(0.0))

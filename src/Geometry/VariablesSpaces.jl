@@ -90,7 +90,7 @@ end
 
 function initialize_control_points(xcontrol::Vector{Float64}; chord = 1.0, initfun=circle)
 
-    ycontrol_top = initfun.(xcontrol) #circle.(xcontrol,1,chord)
+    ycontrol_top = initfun(xcontrol) #circle.(xcontrol,1,chord)
     ycontrol_bottom = -1 .* initfun.(xcontrol) #circle.(xcontrol,-1,chord)
 
     toptags = repeat(["top"],length(ycontrol_top))
@@ -174,7 +174,19 @@ function get_designparameters_tags(ad::AirfoilCSTDesign)
     return ad.acstw.tag
 end
 
+function get_CST_values(ad::AirfoilCSTDesign)
+    weights = ad.acstw.w
+    tags = ad.acstw.tag
+    return weights,tags
+end
 
+function update_CST_weights(w::Vector, ad::AirfoilCSTDesign)
+    @assert length(ad.acstw.w)==length(w)
+    _,tags = get_CST_values(ad)
+    newCSTW = CSTWeights(w,tags)
+    new_ad = update_AirfoilCSTDesign(newCSTW,ad)
+    return new_ad
+end
 
 function CSTWeights(c::CST)
     wu = c.wu

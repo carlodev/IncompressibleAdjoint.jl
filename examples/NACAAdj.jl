@@ -45,14 +45,18 @@ airfoil_cst = AirfoilCST(CST_NACA0012(;N=15,t= 0.0), 0.0)
 xx = collect(0:0.0001:1)
 des_points = AirfoilCSTDesign(airfoil_cst,xx)
 
+
 modelname =create_msh(des_points; AoA=AoA, mesh_ref=4.0)
 model = GmshDiscreteModel(modelname)
+writevtk(model, "model")
 
 #Store the node_coordinates of the original model
 modelgrid0 = copy(model.grid.node_coordinates)
 
 uh,ph = solve_inc_primal_s(model, params; filename="inc-steady-SUPG")
 
+
+params[:d_boundary] = VectorValue(0.0,1.0)
 uhadj,phadj = solve_inc_adj_s(model, uh, ph,params; filename="res-adj-steady")
 
 
@@ -61,14 +65,16 @@ control_points_position = [collect(0.001:0.002:0.01);collect(0.02:0.01:0.1);coll
 
 bnodes_top,bnodes_bottom,bnormals_top,bnormals_bottom = get_control_boundary(control_points_position,model,params)
 
-bnodes=bnodes_top
-bnormals=bnormals_top
-
 
 
 updatekey(params,:i,0)
 
-J1ref,(J2_1ref,J2_2ref,J2_3ref,J2_4ref,J2_5ref)= IncompressibleAdjoint.compute_sensitivity(model,params, uh,ph,uhadj,phadj; objective_function=compute_drag)
+function compute_CL(uh,ph,nΓ,dΓ,params)
+    _, CL = compute_airfoil_coefficients(uh,ph,nΓ,dΓ,params)
+    return CL, CL
+end
+
+J1ref,(J2_1ref,J2_2ref,J2_3ref,J2_4ref,J2_5ref)= IncompressibleAdjoint.compute_sensitivity(model,params, uh,ph,uhadj,phadj; objective_function=compute_CL)
 
 Nc = length(bnodes_top)
 J1=zeros(Nc)
@@ -86,7 +92,7 @@ normal = bnormals[i]
     updatekey(params,:i,i)
 
     model.grid.node_coordinates .= model.grid.node_coordinates .+ sv
-    J1tmp,(J2_1tmp,J2_2tmp,J2_3tmp,J2_4tmp,J2_5tmp)= IncompressibleAdjoint.compute_sensitivity(model,params, uh,ph,uhadj,phadj; objective_function=compute_drag)
+    J1tmp,(J2_1tmp,J2_2tmp,J2_3tmp,J2_4tmp,J2_5tmp)= IncompressibleAdjoint.compute_sensitivity(model,params, uh,ph,uhadj,phadj; objective_function=compute_CL)
 
     J1[i] = J1tmp
     J2_1[i] = J2_1tmp
@@ -108,4 +114,48 @@ J2s5 = (J2_5 .- J2_5ref)./δ
 
 J2s = J2s1 + J2s2 + J2s3 + J2s4 + J2s5
 Jtot = J1s+ J2s
-plot(Jtot, seriestype=:scatter)
+
+
+plot(getindex.(bnodes_top,1),J2s, seriestype=:scatter)
+
+J2s_BOTTOM = copy(J2s)
+
+J2s_TOP = copy(J2s)
+
+
+# plot(getindex.(bnodes_top,1),Jtot, seriestype=:scatter)
+
+plot!(getindex.(bnodes_top,1),GvecT, seriestype=:scatter)
+
+plot!(getindex.(bnodes_top,1),GradLDF,seriestype=:scatter)
+
+J2s_TOP
+J2s_BOTTOM
+
+plot([J2s_TOP;J2s_BOTTOM], seriestype=:scatter, label="Adjoint Gradient", markercolor=:red,markerstrokewidth=0.0, markersize = 2.0)
+plot!([J2s_TOP;J2s_BOTTOM], label=false, linecolor=:red, linewidth = 0.8,)
+plot!(xlabel="Control Point Number", ylabel= "CL gradient, outward deformation > 0")
+
+savefig("CLgrad.pdf")
+
+ctop = 1:length(bnodes_top)
+cbottom = length(bnodes_top)+1:(length(bnodes_top)+length(bnodes_bottom))
+
+xu,yu = IncompressibleAdjoint.rotate_points([Apoints.xu[2:end],Apoints.yu[2:end]], 2.5)
+xl,yl = IncompressibleAdjoint.rotate_points([Apoints.xl[2:end],Apoints.yl[2:end]], 2.5)
+
+
+
+plot(xu,yu,label=false,linewidth=1.5,linecolor=:black)
+plot!(xl,yl,label=false,linewidth=1.5,linecolor=:black)
+
+
+plot!(getindex.(bnodes_top,1),getindex.(bnodes_top,2),seriestype=:scatter, 
+label="Control Point Number", zcolor=ctop, markersize=4.0, color=:batlow50)
+
+plot!(getindex.(bnodes_bottom,1),getindex.(bnodes_bottom,2),seriestype=:scatter, 
+label=false, zcolor=cbottom, markersize=4.0, color=:batlow50)
+
+plot!(aspect_ratio=:equal)
+
+savefig("ControlPoints.pdf")

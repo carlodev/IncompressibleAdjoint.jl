@@ -22,12 +22,12 @@ function plot_iteration_scalar(Sv::Vector{Float64}, ylab::String; xlab="Iteratio
 end
 
 
-for i = 0:1:9
-img1 = load("Figures/C.000$i.png")
-img2 = load("Figures/plt-$i.png")
+for i = 0:1:8
+img1 = load("results/C.000$i.png")
+img2 = load("results/CL_$(i+1).png")
 
 img1_o   = OffsetArray(img1, 0, 0)
-img2_o   = OffsetArray(img2,  100,  900)
+img2_o   = OffsetArray(img2,  500,  1800)
 
 
 
@@ -37,6 +37,6 @@ out_over = copy(r)
 out_over[axes(img2_o)...] .= img2_o
 
 imres = mosaicview(out_over)
-save("Figures/res-$i.png", imres)
+save("results/res-$i.png", imres)
 
 end

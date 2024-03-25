@@ -15,6 +15,11 @@ function eq_primal_steady(params::Dict{Symbol,Any})
 end
 
 
+"""
+    primal_steady_SUPG(params::Dict{Symbol,Any})
+
+Navier-Stokes SUPG stabilized set of equations
+"""
 function primal_steady_SUPG(params::Dict{Symbol,Any})
 
     @unpack ν, dt, dΩ, D, Ω, θ,uh = params
@@ -33,6 +38,11 @@ function primal_steady_SUPG(params::Dict{Symbol,Any})
 
 end
 
+"""
+    primal_steady_VMS(params::Dict{Symbol,Any})
+
+Navier-Stokes VMS stabilized set of equations
+"""
 function primal_steady_VMS(params::Dict{Symbol,Any})
     @unpack ν, dt, dΩ, D, Ω, θ,uh,Cᵢ = params
     G = compute_G(Ω,params)
@@ -77,7 +87,11 @@ function eq_primal_unsteady(params::Dict{Symbol,Any})
     return m, res_prim, rhs
 end
 
+"""
+    primal_steady_SUPG(params::Dict{Symbol,Any})
 
+Navier-Stokes unsteady SUPG stabilized set of equations
+"""
 function primal_unsteady_SUPG(params::Dict{Symbol,Any})
 
     @unpack ν, dt, dΩ, D, Ω, θ,uh = params
@@ -99,8 +113,35 @@ function primal_unsteady_SUPG(params::Dict{Symbol,Any})
 
 end
 
+"""
+    primal_steady_VMS(params::Dict{Symbol,Any})
+
+Navier-Stokes unsteady VMS stabilized set of equations
+"""
 function primal_unsteady_VMS(params::Dict{Symbol,Any})
-    @error("Not implemented yet")
+    @unpack ν, dt, dΩ, D, Ω, θ,uh,Cᵢ = params
+    G = compute_G(Ω,params)
+    GG = compute_GG(Ω,params)
+    gg = compute_gg(Ω,params)
+
+    updatekey(params, :G,G)
+    updatekey(params, :GG,GG)
+    updatekey(params, :gg,gg)
+
+    Rm(u, p) = conv ∘ (uh, ∇(u)) + ∇(p)
+
+    TRm(u, p) = τm(uh,params) * Rm(u, p)
+
+    Bᴳ(t,(u, p), (v, q)) = ∫(v ⊙ (conv ∘ (uh, ∇(u))))dΩ - ∫((∇ ⋅ v) * p)dΩ + ∫((q * (∇ ⋅ u)))dΩ + ν * ∫(∇(v) ⊙ ∇(u))dΩ
+    B_SUPG(t,(u, p), (v, q)) = ∫((uh ⋅ ∇(v) + ∇(q)) ⊙ TRm(u, p))dΩ + ∫((∇ ⋅ v) ⊙ (τc(uh, params) * (∇ ⋅ u) ))dΩ
+    B_VMS1(t,(u, p), (v, q)) = ∫((uh ⋅ (∇(v))') ⊙ TRm(u, p))dΩ
+
+    m(t, (u, p), (v, q)) =   ∫(u ⋅ v)dΩ +  ∫( τm(uh,params) ⋅ (uh ⋅ ∇(v) + (uh ⋅ (∇(v))') + ∇(q)) ⋅ u)dΩ
+
+
+    res_prim(t,(u, p), (v, q)) = Bᴳ(t,(u, p), (v, q)) +B_SUPG(t,(u, p), (v, q)) + B_VMS1(t,(u, p), (v, q))
+
+    return m,res_prim
 end
 
 function get_θvp(θ)

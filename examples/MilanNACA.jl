@@ -22,11 +22,11 @@ params=Dict(
     :u_in=>1.0,
     :D=>2,
     :Re => Reynolds,
-    :dt => 0.25,
+    :dt => 0.05,
     :ν =>1 / Reynolds,
     :D =>2,
     :order => 1,
-    :method=>:SUPG,
+    :method=>:VMS,
     :tagname=>"airfoil",
     :t0=>0.0,
     :tf=>15.0,
@@ -35,6 +35,7 @@ params=Dict(
     :θ=>1.0,
     :d_boundary=>VectorValue(-1.0,0.0), # It is the boundary condition for the adjoint problem at tag `:tagname`
     :AoA=>2.5,
+    :Cᵢ=>[4,36],
 )
 
 
@@ -51,8 +52,15 @@ model = GmshDiscreteModel(modelname)
 #Store the node_coordinates of the original model
 modelgrid0 = copy(model.grid.node_coordinates)
 
-uh,ph = solve_inc_primal_s(model, params; filename="inc-steady-SUPG")
 
+
+uh,ph = solve_inc_primal_s(model, params; filename="inc-steady-VMS")
+using JLD2
+
+uh.free_values .= load("NACA0012_AoA2p5_1000.jld2")["UH"][end]
+ph.free_values .= load("NACA0012_AoA2p5_1000.jld2")["PH"][end]
+
+params[:d_boundary] = VectorValue(0.0,-1.0)
 uhadj,phadj = solve_inc_adj_s(model, uh, ph,params; filename="res-adj-steady")
 
 
@@ -61,8 +69,7 @@ control_points_position = [collect(0.001:0.002:0.01);collect(0.02:0.01:0.1);coll
 
 bnodes_top,bnodes_bottom,bnormals_top,bnormals_bottom = get_control_boundary(control_points_position,model,params)
 
-bnodes=bnodes_top
-bnormals=bnormals_top
+
 
 
 plot(getindex.(bnodes_top,1),getindex.(bnodes_top,2),seriestype=:scatter, label="control points - TOP")
@@ -79,7 +86,6 @@ tΓ = rotation ∘ nΓ #extract tangent
 δ=0.001
 GvecT = zeros(length(bnodes_top))
 
-
 for (i,(point,bnorm)) in enumerate(zip(bnodes_top,bnormals_top))
 function node_filter(x)
     R = 0.001 #get_radius_shift(bnorm.*δ)
@@ -90,7 +96,6 @@ end
 G = ν *sum(∫(((transpose(∇(uh)) ⋅ nΓ) ⋅ tΓ)* ((transpose(∇(uhadj)) ⋅ nΓ) ⋅ tΓ) * node_filter )dΓ)
 GvecT[i] = G
 end
-
 
 
 
@@ -110,7 +115,6 @@ end
 
 plot(GvecT./ δ, seriestype=:scatter, label = "top points Sensitivities")
 plot!(xlabel="desing variable", ylabel="CD gradient")
-
 
 #######################################################
 ### Finite Difference Sensitivity

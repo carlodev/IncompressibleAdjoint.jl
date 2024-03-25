@@ -1,15 +1,15 @@
 using Gmsh
 import Gmsh: gmsh
 
-function create_msh(des_tmp::DesignParameters;AoA=0.0, iter =0,chord = 1.0, mesh_ref=1.0)
+function create_msh(des_tmp::DesignParameters;AoA=0.0, iter =0,chord = 1.0, mesh_ref=1.0, folder="MeshFiles")
     spline_points = SplinePoints(des_tmp)
-    create_msh(spline_points;AoA=AoA, iter = iter, chord = chord, mesh_ref=mesh_ref)
+    create_msh(spline_points;AoA=AoA, iter = iter, chord = chord, mesh_ref=mesh_ref, folder=folder)
 end
 
 
-function create_msh(xcontrol::Vector{Float64}; AoA=0.0, iter = 0, chord = 1.0, initfun=circle)
+function create_msh(xcontrol::Vector{Float64}; AoA=0.0, iter = 0, chord = 1.0, initfun=circle, folder="MeshFiles")
 control_points = initialize_control_points(xcontrol; chord = chord, initfun=initfun)
-create_msh(control_points; AoA=AoA, iter = iter, chord = chord)
+create_msh(control_points; AoA=AoA, iter = iter, chord = chord, folder=folder)
 end
 
 
@@ -66,7 +66,7 @@ end
 
 From a set of `spline_points` it creates the .msh file. Incresing `mesh_ref` is increasing the mesh density.
 """
-function create_msh(spline_points::SplinePoints; AoA=0.0, iter = 0, chord= 1.0, mesh_ref=1.0)
+function create_msh(spline_points::SplinePoints; AoA=0.0, iter = 0, chord= 1.0, mesh_ref=1.0, folder="MeshFiles")
 
 
     gmsh.initialize()
@@ -215,7 +215,7 @@ function create_msh(spline_points::SplinePoints; AoA=0.0, iter = 0, chord= 1.0, 
         
     #vertical inner lines
     for i in [7,11,22,23,12,6]
-        gmsh.model.geo.mesh.setTransfiniteCurve(i, maximum([Int32(40), Int32(round(80*mesh_ref))]), "Progression", 1.02)
+        gmsh.model.geo.mesh.setTransfiniteCurve(i, maximum([Int32(40), Int32(round(80*mesh_ref))]), "Progression", 1.12) # 1.02
     end
     
     
@@ -238,7 +238,7 @@ function create_msh(spline_points::SplinePoints; AoA=0.0, iter = 0, chord= 1.0, 
     
     #Shear Curves
     for i in [4,14,10,16,2]
-        gmsh.model.geo.mesh.setTransfiniteCurve(i, maximum([Int32(40), Int32(round(20*mesh_ref))]), "Progression", 1.05)
+        gmsh.model.geo.mesh.setTransfiniteCurve(i, maximum([Int32(40), Int32(round(20*mesh_ref))]), "Progression", 1.15)
     end
     
     
@@ -271,9 +271,10 @@ function create_msh(spline_points::SplinePoints; AoA=0.0, iter = 0, chord= 1.0, 
     #Surfaces
     gmsh.model.addPhysicalGroup(2, collect(1:10),-1, "fluid")
     
-    mkpath("MeshFiles")
+    mkpath(folder)
 
-    mesh_filename = joinpath("MeshFiles","Mesh$iter.msh")
+    mesh_filename = joinpath(folder,"Mesh$iter.msh")
+
     gmsh.model.mesh.generate(2)
     gmsh.write(mesh_filename)
     gmsh.finalize()
