@@ -40,16 +40,8 @@ export update_ũ
 export update_ũ_vector!
 include("LinearUtilities.jl")
 
-export solve_inc_primal_u
-export solve_inc_primal_s
-export solve_inc_adj_u
-export solve_inc_adj_s
-include("Solve_primal_and_adjoint_mix.jl")
 
-
-export solve_inc_direct_differentiation_s
-include("Solve_direct_differentiation.jl")
-
+include(joinpath("IncompressibleSolvers","IncompressibleSolvers.jl"))
 
 export iterate_optimization
 export compute_airfoil_forces
@@ -64,4 +56,5 @@ export istantaneus_CD_CL
 export average_CD_CL
 include("TimeAverage.jl")
 
+include(joinpath("Utils","Utils.jl"))
 end

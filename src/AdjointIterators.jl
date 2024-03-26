@@ -19,8 +19,9 @@ Objective function, it wants the CL to reach `CLtarget`. It return CL so it can 
 """
 function compute_lift(uh,ph,nΓ,dΓ,params; CLtarget=0.75)
     _, CL = compute_airfoil_coefficients(uh,ph,nΓ,dΓ,params)
-    return 0.5*(CLtarget-0.75)^2, CL
+    return 0.5*(CL-CLtarget)^2, CL
 end
+
 ###################################################################################
 #Iterators
 ##################################################################################

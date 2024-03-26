@@ -1,7 +1,3 @@
-
-using LinearAlgebra
-using Gridap
-
 function Base.abs(a::VectorValue)
     VectorValue(map(b-> abs(b), [a...]))
 end

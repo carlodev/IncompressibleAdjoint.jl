@@ -11,6 +11,7 @@ export eq_adjoint_steady
 export eq_adjoint_unsteady
 
 export eq_direct_differentiation_steady
+export eq_direct_differentiation_unsteady
 
 include("EquationsOperations.jl")
 include("StabParams.jl")

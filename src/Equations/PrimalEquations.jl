@@ -134,13 +134,14 @@ function primal_unsteady_VMS(params::Dict{Symbol,Any})
 
     Bᴳ(t,(u, p), (v, q)) = ∫(v ⊙ (conv ∘ (uh, ∇(u))))dΩ - ∫((∇ ⋅ v) * p)dΩ + ∫((q * (∇ ⋅ u)))dΩ + ν * ∫(∇(v) ⊙ ∇(u))dΩ
     B_SUPG(t,(u, p), (v, q)) = ∫((uh ⋅ ∇(v) + ∇(q)) ⊙ TRm(u, p))dΩ + ∫((∇ ⋅ v) ⊙ (τc(uh, params) * (∇ ⋅ u) ))dΩ
+
     B_VMS1(t,(u, p), (v, q)) = ∫((uh ⋅ (∇(v))') ⊙ TRm(u, p))dΩ
+    res_prim(t,(u, p), (v, q)) = Bᴳ(t,(u, p), (v, q)) +B_SUPG(t,(u, p), (v, q)) + B_VMS1(t,(u, p), (v, q))
+
 
     m(t, (u, p), (v, q)) =   ∫(u ⋅ v)dΩ +  ∫( τm(uh,params) ⋅ (uh ⋅ ∇(v) + (uh ⋅ (∇(v))') + ∇(q)) ⋅ u)dΩ
 
-
-    res_prim(t,(u, p), (v, q)) = Bᴳ(t,(u, p), (v, q)) +B_SUPG(t,(u, p), (v, q)) + B_VMS1(t,(u, p), (v, q))
-
+    
     return m,res_prim
 end
 

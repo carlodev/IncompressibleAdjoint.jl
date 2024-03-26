@@ -8,23 +8,16 @@ Direct Differentiation as in
 Janssens -P Vandenschrick -K Stevens -G Alessi, B. (n.d.). THE CONTINUOUS ADJOINT APPROACH APPLIED TO THE STABILIZED FINITE-ELEMENT FORMULATION OF THE INCOMPRESSIBLE NAVIER-STOKES EQUATIONS. www.euroturbo.eu
 """
 
-# using Distributed
-
-# np = 8
-# addprocs(np)
-
-    
-
 using IncompressibleAdjoint
+using IncompressibleAdjoint.Geometry
+using IncompressibleAdjoint.IncompressibleSolvers
+
 using Gridap,GridapGmsh
 using Parameters
 using Statistics
 using Revise
 using Plots
 using JLD2
-#Number of Process to add
-using SharedArrays
-using Distributed
 
 
 
@@ -66,6 +59,7 @@ modelgrid0 = copy(model.grid.node_coordinates)
 
 uh,ph = solve_inc_primal_s(model, params; filename=nothing)
 
+params[:tf]=0.1
 (uh,duhdt, UH, DUHDT), (ph, PH) = solve_inc_primal_u(model, params; filename="res-unsteady")
 
 average_field!(uh,UH[end-50:end])
@@ -90,14 +84,15 @@ GradDDF = zeros(length(control_nodes))
 GradLDF = zeros(length(control_normals))
 
 
-## Parallelized Loop
-#@distributed
+### Direct Differentiation Loop
 for i in 1:1:length(control_nodes)
 
 point = control_nodes[i]
 nb = control_normals[i]
 
-uhb,phb = solve_inc_direct_differentiation_s(model,uh, params, point, nb; filename="DirectDifferentiation/inc-direct-diff$i")
+
+
+uhb,phb = solve_inc_direct_differentiation_u(model,uh, params, point, nb; filename="DirectDifferentiation/inc-direct-diff$i")
 #Drag Sensitivity
 dJDdB = sum(∫( -phb ⋅ nΓ ⋅VectorValue(1.0,0.0))dΓ )
 dJLdB = sum(∫( -phb ⋅ nΓ ⋅VectorValue(0.0,1.0))dΓ )

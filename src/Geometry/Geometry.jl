@@ -17,6 +17,9 @@ export ControlPoints
 export get_CST_values
 export update_CST_weights
 export initialize_control_points
+export get_designparameters_number
+export get_designparameters_tags
+export perturb_DesignParameters
 include("VariablesSpaces.jl")
 
 export create_msh
