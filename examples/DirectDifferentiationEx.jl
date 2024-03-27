@@ -92,7 +92,7 @@ nb = control_normals[i]
 
 
 
-uhb,phb = solve_inc_direct_differentiation_u(model,uh, params, point, nb; filename="DirectDifferentiation/inc-direct-diff$i")
+uhb,phb = solve_inc_direct_differentiation_u(model,(uh,UH),(ph,PH), params, point, nb; filename="DirectDifferentiation/inc-direct-diff$i")
 #Drag Sensitivity
 dJDdB = sum(∫( -phb ⋅ nΓ ⋅VectorValue(1.0,0.0))dΓ )
 dJLdB = sum(∫( -phb ⋅ nΓ ⋅VectorValue(0.0,1.0))dΓ )
@@ -107,8 +107,8 @@ end
 
 
 
-####POST PROCS
 
+####POST PROCS
 using Plots
 GradDDF = load("results/DirectDiff_2.jld2")["GradDDF"]
 

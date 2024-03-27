@@ -147,7 +147,6 @@ function direct_differentiation_unsteady_VMS(params::Dict{Symbol,Any})
 
     res_dd(t,(u, p), (v, q)) = Bᴳ((u, p), (v, q)) +B_SUPG((u, p), (v, q)) + B_VMS1((u, p), (v, q))
     
-    time_sign = -1
     m(t, (u, p), (v, q)) =   ∫(u ⋅ v)dΩ +  ∫( τm(uh,params) ⋅ (uh ⋅ ∇(v) + (uh ⋅ (∇(v))') + ∇(q)) ⋅ u)dΩ
 
     return m,res_dd

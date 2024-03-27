@@ -15,12 +15,12 @@ function istantaneus_CD_CL(model::DiscreteModel, params::Dict{Symbol,Any}, (uh0,
 return CD_vec,CL_vec
 end
 
+
 function average_CD_CL(model::DiscreteModel, params::Dict{Symbol,Any}, (uh0,UH),(ph0,PH))
     CD_vec,CL_vec = istantaneus_CD_CL(model, params, (uh0,UH),(ph0,PH))
     CD_avg,CL_avg = average_CD_CL(CD_vec,CL_vec, params)
 return CD_avg,CL_avg
 end
-
 
 
 function average_CD_CL(CD_vec::AbstractVector,CL_vec::AbstractVector, params::Dict{Symbol,Any})

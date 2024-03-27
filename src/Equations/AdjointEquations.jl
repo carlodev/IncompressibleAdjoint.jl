@@ -78,7 +78,6 @@ function adjoint_steady_VMS(params::Dict{Symbol,Any})
     TRm(u, p) = τm(uh,params) * Rmadj(u, p)
     
     ADJBᴳ((u, p), (v, q)) = ∫(ν * ∇(v) ⊙ ∇(u) - q * (∇ ⋅ u))dΩ + ∫(v ⊙ Rmadj(u, p))dΩ
-    # ADJB_SUPG((u, p), (v, q)) = ∫((-uh ⋅ ∇(v) - ∇(v) ⋅ uh - ∇(q)⊙ TRm(u, p)) )dΩ + -1 .* ∫((∇ ⋅ v) ⊙ (τc(uh, params) ⊙ Rcadj(u) ))dΩ
     
     ADJB_SUPG((u, p), (v, q)) = ∫( (- transpose(∇(v)) ⋅ uh - ∇(v)⋅uh- ∇(q)) ⊙ TRm(u, p))dΩ +
             -1 * ∫( τc(uh, params) ⋅ (∇ ⋅ v) ⊙ Rcadj(u))dΩ

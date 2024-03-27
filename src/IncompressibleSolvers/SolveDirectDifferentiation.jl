@@ -76,6 +76,9 @@ end
 function solve_inc_direct_differentiation_u(model,primal_sol_uh::Tuple, primal_sol_ph::Tuple, params::Dict{Symbol,Any}, point::VectorValue, nb::VectorValue; filename="inc-direct-diff")
     
     @unpack t0,tf,dt, θ=params
+     
+    uh0, UH = primal_sol_uh
+    ph0, PH = primal_sol_ph
     
     params, X,Y,xhb0 = inc_direct_differentiation(model,uh, params, point, nb)
 
@@ -90,9 +93,7 @@ function solve_inc_direct_differentiation_u(model,primal_sol_uh::Tuple, primal_s
     ode_solver = ThetaMethod(ls,dt,θ)
 
     sol = Gridap.solve(ode_solver, op, xhb0, t0, tf)
-    
-    uh0, UH = primal_sol_uh
-    ph0, PH = primal_sol_ph
+   
     uhb0,phb0=xhb0
 
     UbH = [copy(uhb0.free_values)]
