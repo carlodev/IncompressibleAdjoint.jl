@@ -80,6 +80,17 @@ function get_boundary_nodes(model::DiscreteModel, tagname::String)
     return boundary_nodes
 end
 
+function get_boundary_nodes(model::DiscreteModel, tagnames::Vector{String})
+    boundary_nodes = get_boundary_nodes(model, tagnames[1])
+    if length(tagnames)>1
+        for tagname in tagnames[2:end]
+            boundary_nodes_tmp = get_boundary_nodes(model, tagname)
+            push!(boundary_nodes,boundary_nodes_tmp...)
+        end
+    end
+    return boundary_nodes
+end
+
 function get_nodes_idx(model::DiscreteModel, tagname::String)
     visgrid = get_visgrid(model, tagname)
     visgrid_ = conv_VectorValue.(visgrid.sub_grid.node_coordinates)
